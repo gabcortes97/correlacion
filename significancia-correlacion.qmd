@@ -74,6 +74,13 @@ body { background: var(--bg); color: var(--text); }
   font-family: "IBM Plex Mono", monospace; font-size: 0.85rem;
 }
 .btn-case:hover, .btn-plain:hover { border-color: var(--blue); color: var(--text); background: var(--card-inset); }
+.control-group .group-label { font-weight: 700; display: block; margin-bottom: 0.25rem; }
+.btn-conf {
+  background: var(--card-inset); color: var(--text); border: 1px solid var(--border);
+  font-family: "IBM Plex Mono", monospace; font-size: 0.85rem; font-weight: 600;
+}
+.btn-conf:hover { border-color: var(--blue); color: var(--text); background: var(--card-inset); }
+.btn-check:checked + .btn-conf { background: var(--blue); border-color: var(--blue); color: #fff; }
 
 /* Sliders nativos: el valor va en el campo numérico */
 .control-row input[type=range] { width: 240px; max-width: 100%; accent-color: var(--blue); }
@@ -114,6 +121,17 @@ body { background: var(--bg); color: var(--text); }
         <input type="number" id="n_num" class="form-control" min="4" max="1000" step="1" value="30">
       </div>
     </div>
+    <div class="control-group">
+      <span class="group-label">Nivel de confianza</span>
+      <div class="control-row" style="padding-bottom: 0.4rem;">
+        <div class="btn-group" role="group" aria-label="Nivel de confianza">
+          <input type="radio" class="btn-check" name="conf" id="conf95" value="0.05" checked>
+          <label class="btn btn-conf" for="conf95">95 %</label>
+          <input type="radio" class="btn-check" name="conf" id="conf99" value="0.01">
+          <label class="btn btn-conf" for="conf99">99 %</label>
+        </div>
+      </div>
+    </div>
     <div class="control-row" style="padding-bottom: 0.4rem;">
       <button type="button" class="btn btn-plain" id="resample">Nueva muestra</button>
     </div>
@@ -143,7 +161,7 @@ body { background: var(--bg); color: var(--text); }
 
 <script>
 (function () {
-  const N_MIN = 4, N_MAX = 1000, ALPHA = 0.05, R_MAX = 0.99;
+  const N_MIN = 4, N_MAX = 1000, R_MAX = 0.99;
   const BLUE = "#2f6fd0", ORANGE = "#d9822b", GREEN = "#1a7f4b", RED = "#cf222e",
         LINE = "#c0392b", GRID = "#e6e9ed";
 
@@ -211,7 +229,7 @@ body { background: var(--bg); color: var(--text); }
   const pTwoTailed = (t, df) => ibeta(df / (df + t * t), df / 2, 0.5);
 
   // Cuantil 1 - alpha/2 por bisección
-  function tCrit(df, alpha = ALPHA) {
+  function tCrit(df, alpha) {
     let lo = 0, hi = 1000;
     for (let i = 0; i < 100; i++) {
       const mid = (lo + hi) / 2;
@@ -284,7 +302,7 @@ body { background: var(--bg); color: var(--text); }
   }
 
   // ---- Estado y controles -----------------------------------------------
-  const state = { r: 0.51, n: 30, seed: 1 };
+  const state = { r: 0.51, n: 30, seed: 1, alpha: 0.05 };
   const $ = id => document.getElementById(id);
   const clampR = x => Math.round(Math.max(Math.min(x, R_MAX), -R_MAX) * 100) / 100;
   const clampN = x => Math.max(Math.min(Math.round(x), N_MAX), N_MIN);
@@ -308,6 +326,8 @@ body { background: var(--bg); color: var(--text); }
     isNaN(v) ? set() : set(undefined, v);
   });
   $("resample").addEventListener("click", () => { state.seed++; render(); });
+  document.querySelectorAll('input[name="conf"]').forEach(inp =>
+    inp.addEventListener("change", e => { state.alpha = +e.target.value; render(); }));
 
   Object.entries(CASES).forEach(([id, cs]) => {
     const b = document.createElement("button");
@@ -381,8 +401,9 @@ body { background: var(--bg); color: var(--text); }
 
   // ---- Resultados -------------------------------------------------------
   function render() {
-    const { r, n, seed } = state;
-    const df = n - 2, t = tStat(r, n), tc = tCrit(df);
+    const { r, n, seed, alpha } = state;
+    const conf = Math.round(100 * (1 - alpha));
+    const df = n - 2, t = tStat(r, n), tc = tCrit(df, alpha);
     const p = pTwoTailed(t, df), sig = Math.abs(t) >= tc;
 
     $("scatter_caption").textContent =
@@ -391,8 +412,8 @@ body { background: var(--bg); color: var(--text); }
 
     const col = sig ? GREEN : RED;
     const explanation = sig
-      ? `Como |t| = ${num(Math.abs(t))} es mayor que el t crítico (${num(tc)}), se rechaza H₀: hay evidencia para afirmar que la correlación en la población es distinta de cero.`
-      : `Como |t| = ${num(Math.abs(t))} es menor que el t crítico (${num(tc)}), no se rechaza H₀: no hay evidencia suficiente para afirmar que la correlación en la población sea distinta de cero.`;
+      ? `Como |t| = ${num(Math.abs(t))} es mayor que el t crítico (${num(tc)}), se rechaza H₀ con un ${conf} % de confianza: hay evidencia para afirmar que la correlación en la población es distinta de cero.`
+      : `Como |t| = ${num(Math.abs(t))} es menor que el t crítico (${num(tc)}), no se rechaza H₀ con un ${conf} % de confianza: no hay evidencia suficiente para afirmar que la correlación en la población sea distinta de cero.`;
     const pTxt = p < 0.001 ? "< 0,001" : num(p, 3);
 
     $("results").innerHTML = `
@@ -400,14 +421,14 @@ body { background: var(--bg); color: var(--text); }
       <table class="stats-table">
         <tr><td>Magnitud (Cohen)</td><td>r = ${num(r)}, ${cohenLabel(r)}</td></tr>
         <tr><td>Estadístico t</td><td>${num(t)}</td></tr>
-        <tr><td>t crítico (α = ${num(ALPHA)}, dos colas)</td><td>± ${num(tc)}</td></tr>
+        <tr><td>t crítico (α = ${num(alpha)}, dos colas)</td><td>± ${num(tc)}</td></tr>
         <tr><td>Grados de libertad</td><td>${int(df)} (n − 2)</td></tr>
         <tr><td>Valor p</td><td>${pTxt}</td></tr>
       </table>
       <p class="explanation">${explanation}</p>`;
 
     $("venn_caption").textContent =
-      `R² = r² = ${num(100 * r * r, 1)} % de la varianza de Y está asociada a X. Este valor no cambia con n.`;
+      `R² = ${num(100 * r * r, 1)} % de la varianza de Y está asociada a X. Este valor se mantiene constante al cambiar el tamaño muestral`;
     drawVenn(r);
   }
 
