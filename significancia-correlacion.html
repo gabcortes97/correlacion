@@ -92,6 +92,8 @@ Nota
   --orange: #d9822b;
   --green: #1a7f4b;
   --red: #cf222e;
+  --line: #c0392b;
+  --grid: #e6e9ed;
 }
 body { background: var(--bg); color: var(--text); }
 .quarto-title-block .quarto-title-banner, header#title-block-header { background: transparent; }
@@ -113,8 +115,6 @@ body { background: var(--bg); color: var(--text); }
 .controls { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 1.5rem; }
 .control-group label.group-label { font-weight: 700; display: block; margin-bottom: 0.25rem; }
 .control-row { display: flex; align-items: center; gap: 0.75rem; }
-.control-row .form-group { margin-bottom: 0; }
-.control-row .shiny-input-container:not(.shiny-input-container-inline) { width: auto; }
 .control-row input[type=number] {
   width: 95px; background: var(--card-inset); color: var(--text);
   border: 1px solid var(--border); font-family: "IBM Plex Mono", monospace;
@@ -128,11 +128,8 @@ body { background: var(--bg); color: var(--text); }
 }
 .btn-case:hover, .btn-plain:hover { border-color: var(--blue); color: var(--text); background: var(--card-inset); }
 
-/* Sliders (ionRangeSlider) sin etiquetas: el valor va en el campo numérico */
-.irs--shiny .irs-line { background: var(--border); border: none; }
-.irs--shiny .irs-bar { background: var(--blue); border: none; }
-.irs--shiny .irs-handle { background: var(--blue); border: 2px solid var(--blue); box-shadow: none; }
-.irs--shiny .irs-min, .irs--shiny .irs-max, .irs--shiny .irs-single { display: none; }
+/* Sliders nativos: el valor va en el campo numérico */
+.control-row input[type=range] { width: 240px; max-width: 100%; accent-color: var(--blue); }
 
 /* Tarjeta de resultados */
 .verdict {
@@ -145,70 +142,350 @@ body { background: var(--bg); color: var(--text); }
 .stats-table td:last-child { font-family: "IBM Plex Mono", monospace; font-weight: 600; }
 .explanation { margin-bottom: 1.25rem; }
 .venn-caption { color: var(--muted); font-size: 0.85rem; }
+
+/* Gráficos SVG */
+.plot svg { display: block; width: 100%; height: auto; }
+#scatter_plot svg { max-height: 470px; }
+#venn_plot svg { max-height: 170px; }
+.plot .tick { fill: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: 13px; }
+.plot .axis-title { font-weight: 700; font-size: 15px; }
 </style>
-<div class="cell">
-<div class="cell-output-display">
-<div class="card-panel" style="margin-bottom: 1.25rem;">
-<div class="controls">
-<div class="control-group">
-<label class="group-label">Correlación r</label>
-<div class="control-row">
-<div class="form-group shiny-input-container" style="width:240px;">
-<label class="control-label shiny-label-null" for="r_slider" id="r_slider-label"></label>
-<input class="js-range-slider" id="r_slider" data-skin="shiny" data-min="-0.99" data-max="0.99" data-from="0.51" data-step="0.01" data-grid="false" data-grid-snap="false" data-prettify-separator="," data-prettify-enabled="true" data-keyboard="true" data-data-type="number">
+
+<div class="card-panel" style="margin-bottom: 1.25rem; height: auto;">
+  <div class="controls">
+    <div class="control-group">
+      <label class="group-label" for="r_num">Correlación r</label>
+      <div class="control-row">
+        <input type="range" id="r_slider" min="-0.99" max="0.99" step="0.01" value="0.51" aria-label="Correlación r">
+        <input type="number" id="r_num" class="form-control" min="-0.99" max="0.99" step="0.01" value="0.51">
+      </div>
+    </div>
+    <div class="control-group">
+      <label class="group-label" for="n_num">Tamaño muestral n</label>
+      <div class="control-row">
+        <input type="range" id="n_slider" min="4" max="1000" step="1" value="30" aria-label="Tamaño muestral n">
+        <input type="number" id="n_num" class="form-control" min="4" max="1000" step="1" value="30">
+      </div>
+    </div>
+    <div class="control-row" style="padding-bottom: 0.4rem;">
+      <button type="button" class="btn btn-plain" id="resample">Nueva muestra</button>
+    </div>
+  </div>
+  <div class="cases" id="cases">
+    <span class="cases-label">Casos para la clase:</span>
+  </div>
 </div>
-<div class="form-group shiny-input-container">
-<label class="control-label shiny-label-null" for="r_num" id="r_num-label"></label>
-<input id="r_num" type="number" class="shiny-input-number form-control" value="0.51" data-update-on="change" min="-0.99" max="0.99" step="0.01">
-</div>
-</div>
-</div>
-<div class="control-group">
-<label class="group-label">Tamaño muestral n</label>
-<div class="control-row">
-<div class="form-group shiny-input-container" style="width:240px;">
-<label class="control-label shiny-label-null" for="n_slider" id="n_slider-label"></label>
-<input class="js-range-slider" id="n_slider" data-skin="shiny" data-min="4" data-max="1000" data-from="30" data-step="1" data-grid="false" data-grid-snap="false" data-prettify-separator="," data-prettify-enabled="true" data-keyboard="true" data-data-type="number">
-</div>
-<div class="form-group shiny-input-container">
-<label class="control-label shiny-label-null" for="n_num" id="n_num-label"></label>
-<input id="n_num" type="number" class="shiny-input-number form-control" value="30" data-update-on="change" min="4" max="1000" step="1">
-</div>
-</div>
-</div>
-<div class="control-row" style="padding-bottom: 0.4rem;">
-<button class="btn btn-default action-button btn-plain" id="resample" type="button">Nueva muestra</button>
-</div>
-</div>
-<div class="cases">
-<span class="cases-label">Casos para la clase:</span>
-<button class="btn btn-default action-button btn-case btn-sm" id="case_A" type="button"><b>A</b> r = 0,51, n = 6</button>
-<button class="btn btn-default action-button btn-case btn-sm" id="case_B" type="button"><b>B</b> r = 0,51, n = 30</button>
-<button class="btn btn-default action-button btn-case btn-sm" id="case_C" type="button"><b>C</b> r = 0,10, n = 100</button>
-<button class="btn btn-default action-button btn-case btn-sm" id="case_D" type="button"><b>D</b> r = 0,80, n = 5</button>
-</div>
-</div>
-</div>
-<div class="cell-output-display no-overflow-x">
+
 <div class="grid">
-<div class="g-col-12 g-col-lg-6">
-<div class="card-panel">
-<h3 class="anchored">Nube de puntos</h3>
-<div id="scatter_caption" class="shiny-html-output"></div>
-<div class="shiny-plot-output html-fill-item" id="scatter_plot" style="width:100%;height:470px;"></div>
+  <div class="g-col-12 g-col-lg-6">
+    <div class="card-panel">
+      <h3 class="anchored">Nube de puntos</h3>
+      <div class="card-sub" id="scatter_caption"></div>
+      <div class="plot" id="scatter_plot"></div>
+    </div>
+  </div>
+  <div class="g-col-12 g-col-lg-6">
+    <div class="card-panel">
+      <div id="results"></div>
+      <h3 class="anchored">Varianza compartida</h3>
+      <div class="venn-caption" id="venn_caption"></div>
+      <div class="plot" id="venn_plot"></div>
+    </div>
+  </div>
 </div>
-</div>
-<div class="g-col-12 g-col-lg-6">
-<div class="card-panel">
-<div id="results" class="shiny-html-output"></div>
-<h3 class="anchored">Varianza compartida</h3>
-<div id="venn_caption" class="shiny-html-output"></div>
-<div class="shiny-plot-output html-fill-item" id="venn_plot" style="width:100%;height:170px;"></div>
-</div>
-</div>
-</div>
-</div>
-</div>
+
+<script>
+(function () {
+  const N_MIN = 4, N_MAX = 1000, ALPHA = 0.05, R_MAX = 0.99;
+  const BLUE = "#2f6fd0", ORANGE = "#d9822b", GREEN = "#1a7f4b", RED = "#cf222e",
+        LINE = "#c0392b", GRID = "#e6e9ed";
+
+  const CASES = {
+    A: { r: 0.51, n: 6 },
+    B: { r: 0.51, n: 30 },
+    C: { r: 0.10, n: 100 },
+    D: { r: 0.80, n: 5 }
+  };
+
+  const num = (x, digits = 2) => {
+    const s = x.toFixed(digits);
+    return (/^-0[.,]?0*$/.test(s) ? s.slice(1) : s).replace(".", ",");
+  };
+  const int = x => String(x).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+
+  // ---- Distribución t de Student ----------------------------------------
+  function lnGamma(z) {
+    const g = [676.5203681218851, -1259.1392167224028, 771.32342877765313,
+      -176.61503916999185, 12.507343278686905, -0.13857109526572012,
+      9.9843695780195716e-6, 1.5056327351493116e-7];
+    if (z < 0.5) return Math.log(Math.PI / Math.sin(Math.PI * z)) - lnGamma(1 - z);
+    z -= 1;
+    let a = 0.99999999999980993;
+    const t = z + 7.5;
+    for (let i = 0; i < 8; i++) a += g[i] / (z + i + 1);
+    return 0.5 * Math.log(2 * Math.PI) + (z + 0.5) * Math.log(t) - t + Math.log(a);
+  }
+
+  // Fracción continua de la beta incompleta (Numerical Recipes)
+  function betacf(x, a, b) {
+    const FPMIN = 1e-300;
+    let qab = a + b, qap = a + 1, qam = a - 1, c = 1, d = 1 - qab * x / qap;
+    if (Math.abs(d) < FPMIN) d = FPMIN;
+    d = 1 / d;
+    let h = d;
+    for (let m = 1; m <= 300; m++) {
+      const m2 = 2 * m;
+      let aa = m * (b - m) * x / ((qam + m2) * (a + m2));
+      d = 1 + aa * d; if (Math.abs(d) < FPMIN) d = FPMIN;
+      c = 1 + aa / c; if (Math.abs(c) < FPMIN) c = FPMIN;
+      d = 1 / d; h *= d * c;
+      aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2));
+      d = 1 + aa * d; if (Math.abs(d) < FPMIN) d = FPMIN;
+      c = 1 + aa / c; if (Math.abs(c) < FPMIN) c = FPMIN;
+      d = 1 / d;
+      const del = d * c;
+      h *= del;
+      if (Math.abs(del - 1) < 1e-14) break;
+    }
+    return h;
+  }
+
+  // Beta incompleta regularizada I_x(a, b)
+  function ibeta(x, a, b) {
+    if (x <= 0) return 0;
+    if (x >= 1) return 1;
+    const bt = Math.exp(lnGamma(a + b) - lnGamma(a) - lnGamma(b) +
+                        a * Math.log(x) + b * Math.log(1 - x));
+    return x < (a + 1) / (a + b + 2) ? bt * betacf(x, a, b) / a
+                                     : 1 - bt * betacf(1 - x, b, a) / b;
+  }
+
+  // P(|T| >= |t|) con df grados de libertad
+  const pTwoTailed = (t, df) => ibeta(df / (df + t * t), df / 2, 0.5);
+
+  // Cuantil 1 - alpha/2 por bisección
+  function tCrit(df, alpha = ALPHA) {
+    let lo = 0, hi = 1000;
+    for (let i = 0; i < 100; i++) {
+      const mid = (lo + hi) / 2;
+      if (pTwoTailed(mid, df) > alpha) lo = mid; else hi = mid;
+    }
+    return (lo + hi) / 2;
+  }
+
+  const tStat = (r, n) => r * Math.sqrt((n - 2) / (1 - r * r));
+
+  function cohenLabel(r) {
+    const a = Math.abs(r);
+    if (a < 0.1) return "inferior a pequeña";
+    if (a < 0.3) return "pequeña";
+    if (a < 0.5) return "mediana";
+    return "grande";
+  }
+
+  // ---- Datos simulados --------------------------------------------------
+  function mulberry32(seed) {
+    return function () {
+      seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+      let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  function rnorm(n, rand) {
+    const out = [];
+    while (out.length < n) {
+      const u = 1 - rand(), v = rand();
+      const m = Math.sqrt(-2 * Math.log(u));
+      out.push(m * Math.cos(2 * Math.PI * v), m * Math.sin(2 * Math.PI * v));
+    }
+    return out.slice(0, n);
+  }
+  const mean = a => a.reduce((s, v) => s + v, 0) / a.length;
+  function scale(a) {
+    const m = mean(a);
+    const sd = Math.sqrt(a.reduce((s, v) => s + (v - m) ** 2, 0) / (a.length - 1));
+    return a.map(v => (v - m) / sd);
+  }
+
+  // Datos en puntaje z cuya correlación muestral es exactamente r
+  function exactCorData(r, n, seed) {
+    const rand = mulberry32(seed * 7919 + 17);
+    const x = scale(rnorm(n, rand));
+    const z = rnorm(n, rand);
+    // Residuos de z ~ x (x ya está centrado y con sd 1)
+    const zm = mean(z);
+    const b = x.reduce((s, xi, i) => s + xi * (z[i] - zm), 0) / (n - 1);
+    const e = scale(z.map((zi, i) => zi - zm - b * x[i]));
+    const k = Math.sqrt(1 - r * r);
+    return x.map((xi, i) => [xi, r * xi + k * e[i]]);
+  }
+
+  // Distancia entre centros de dos círculos de radio 1 cuya intersección
+  // cubre una proporción r^2 del área de cada círculo
+  function vennDistance(r) {
+    const target = r * r * Math.PI;
+    if (target >= Math.PI - 1e-9) return 0;
+    if (target <= 1e-9) return 2;
+    const lens = d => 2 * Math.acos(d / 2) - (d / 2) * Math.sqrt(4 - d * d);
+    let lo = 0, hi = 2;
+    for (let i = 0; i < 60; i++) {
+      const mid = (lo + hi) / 2;
+      if (lens(mid) > target) lo = mid; else hi = mid;
+    }
+    return (lo + hi) / 2;
+  }
+
+  // ---- Estado y controles -----------------------------------------------
+  const state = { r: 0.51, n: 30, seed: 1 };
+  const $ = id => document.getElementById(id);
+  const clampR = x => Math.round(Math.max(Math.min(x, R_MAX), -R_MAX) * 100) / 100;
+  const clampN = x => Math.max(Math.min(Math.round(x), N_MAX), N_MIN);
+
+  function set(r, n) {
+    if (r !== undefined) state.r = clampR(r);
+    if (n !== undefined) state.n = clampN(n);
+    $("r_slider").value = state.r; $("r_num").value = state.r;
+    $("n_slider").value = state.n; $("n_num").value = state.n;
+    render();
+  }
+
+  $("r_slider").addEventListener("input", e => set(+e.target.value));
+  $("n_slider").addEventListener("input", e => set(undefined, +e.target.value));
+  $("r_num").addEventListener("change", e => {
+    const v = parseFloat(String(e.target.value).replace(",", "."));
+    isNaN(v) ? set() : set(v);
+  });
+  $("n_num").addEventListener("change", e => {
+    const v = parseFloat(e.target.value);
+    isNaN(v) ? set() : set(undefined, v);
+  });
+  $("resample").addEventListener("click", () => { state.seed++; render(); });
+
+  Object.entries(CASES).forEach(([id, cs]) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "btn btn-case btn-sm";
+    b.innerHTML = `<b>${id}</b> r = ${num(cs.r)}, n = ${int(cs.n)}`;
+    b.addEventListener("click", () => set(cs.r, cs.n));
+    $("cases").appendChild(b);
+  });
+
+  // ---- Gráficos ---------------------------------------------------------
+  const SVG_NS = "http://www.w3.org/2000/svg";
+  function el(tag, attrs, text) {
+    const e = document.createElementNS(SVG_NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+
+  function drawScatter(data, r) {
+    const W = 500, H = 470, ml = 44, mr = 12, mt = 10, mb = 44;
+    const L = 3.4;
+    const sx = v => ml + (v + L) / (2 * L) * (W - ml - mr);
+    const sy = v => mt + (L - v) / (2 * L) * (H - mt - mb);
+    const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img",
+      "aria-label": `Nube de puntos con ${data.length} casos y r = ${num(r)}` });
+
+    for (let v = -3; v <= 3; v++) {
+      svg.appendChild(el("line", { x1: sx(v), x2: sx(v), y1: sy(L), y2: sy(-L), stroke: GRID }));
+      svg.appendChild(el("line", { x1: sx(-L), x2: sx(L), y1: sy(v), y2: sy(v), stroke: GRID }));
+      svg.appendChild(el("text", { x: sx(v), y: H - mb + 18, "text-anchor": "middle", class: "tick" }, v));
+      svg.appendChild(el("text", { x: ml - 8, y: sy(v) + 4, "text-anchor": "end", class: "tick" }, v));
+    }
+    svg.appendChild(el("text", { x: (sx(-L) + sx(L)) / 2, y: H - 6, "text-anchor": "middle",
+      class: "axis-title", fill: BLUE }, "x"));
+    svg.appendChild(el("text", { x: 10, y: (sy(-L) + sy(L)) / 2 + 5, "text-anchor": "middle",
+      class: "axis-title", fill: ORANGE }, "y"));
+
+    const n = data.length;
+    const rad = n > 300 ? 1.6 : n > 50 ? 3 : 4.5;
+    const op = n > 300 ? 0.55 : 0.8;
+    const g = el("g", { fill: BLUE, "fill-opacity": op });
+    data.forEach(([x, y]) => {
+      if (Math.abs(x) <= L && Math.abs(y) <= L)
+        g.appendChild(el("circle", { cx: sx(x), cy: sy(y), r: rad }));
+    });
+    svg.appendChild(g);
+
+    // Recta y = r·x recortada al área visible
+    const xEnd = Math.min(L, L / Math.max(Math.abs(r), 1e-9));
+    svg.appendChild(el("line", { x1: sx(-xEnd), y1: sy(-r * xEnd), x2: sx(xEnd), y2: sy(r * xEnd),
+      stroke: LINE, "stroke-width": 2.2 }));
+
+    $("scatter_plot").replaceChildren(svg);
+  }
+
+  function drawVenn(r) {
+    const d = vennDistance(r);
+    const x0 = d / 2 - 2.05, w = 4.1, h = 2.1;
+    const svg = el("svg", { viewBox: `${x0} -1.05 ${w} ${h}`, role: "img",
+      "aria-label": `Diagrama de Venn: X e Y comparten ${num(100 * r * r, 1)} % de varianza` });
+    svg.appendChild(el("circle", { cx: 0, cy: 0, r: 1, fill: BLUE, "fill-opacity": 0.35,
+      stroke: BLUE, "stroke-width": 0.02 }));
+    svg.appendChild(el("circle", { cx: d, cy: 0, r: 1, fill: ORANGE, "fill-opacity": 0.35,
+      stroke: ORANGE, "stroke-width": 0.02 }));
+    const lbl = { "font-size": 0.22, "font-weight": 700, "text-anchor": "middle", "dominant-baseline": "central" };
+    svg.appendChild(el("text", { ...lbl, x: -0.55, y: 0, fill: BLUE }, "X"));
+    svg.appendChild(el("text", { ...lbl, x: d + 0.55, y: 0, fill: ORANGE }, "Y"));
+    $("venn_plot").replaceChildren(svg);
+  }
+
+  // ---- Resultados -------------------------------------------------------
+  function render() {
+    const { r, n, seed } = state;
+    const df = n - 2, t = tStat(r, n), tc = tCrit(df);
+    const p = pTwoTailed(t, df), sig = Math.abs(t) >= tc;
+
+    $("scatter_caption").textContent =
+      `Cada punto es un caso (n = ${int(n)}). Variables en puntaje z; la recta tiene pendiente r.`;
+    drawScatter(exactCorData(r, n, seed), r);
+
+    const col = sig ? GREEN : RED;
+    const explanation = sig
+      ? `Como |t| = ${num(Math.abs(t))} es mayor que el t crítico (${num(tc)}), se rechaza H₀: hay evidencia para afirmar que la correlación en la población es distinta de cero.`
+      : `Como |t| = ${num(Math.abs(t))} es menor que el t crítico (${num(tc)}), no se rechaza H₀: no hay evidencia suficiente para afirmar que la correlación en la población sea distinta de cero.`;
+    const pTxt = p < 0.001 ? "< 0,001" : num(p, 3);
+
+    $("results").innerHTML = `
+      <div class="verdict" style="color:${col};border-color:${col};">${sig ? "Significativa" : "No significativa"}</div>
+      
+<table class="stats-table caption-top" data-quarto-postprocess="true">
+<tbody>
+<tr class="odd">
+<td>Magnitud (Cohen)</td>
+<td>r = ${num(r)}, ${cohenLabel(r)}</td>
+</tr>
+<tr class="even">
+<td>Estadístico t</td>
+<td>${num(t)}</td>
+</tr>
+<tr class="odd">
+<td>t crítico (α = ${num(ALPHA)}, dos colas)</td>
+<td>± ${num(tc)}</td>
+</tr>
+<tr class="even">
+<td>Grados de libertad</td>
+<td>${int(df)} (n − 2)</td>
+</tr>
+<tr class="odd">
+<td>Valor p</td>
+<td>${pTxt}</td>
+</tr>
+</tbody>
+</table>
+
+      <p class="explanation">${explanation}</p>`;
+
+    $("venn_caption").textContent =
+      `R² = r² = ${num(100 * r * r, 1)} % de la varianza de Y está asociada a X. Este valor no cambia con n.`;
+    drawVenn(r);
+  }
+
+  render();
+})();
+</script>
 <div class="callout callout-style-default callout-important callout-titled">
 <div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">
@@ -224,248 +501,6 @@ Importante
 <p>Rechazar la hipótesis nula <strong>no dice nada sobre la cantidad de varianza que las dos variables comparten</strong></p>
 </div>
 </div>
-<p>
-<script type="application/shiny-prerendered" data-context="server-start">
-library(shiny)
-library(ggplot2)
-
-N_MIN <- 4
-N_MAX <- 1000
-ALPHA <- 0.05
-R_MAX <- 0.99
-BLUE <- "#2f6fd0"
-ORANGE <- "#d9822b"
-GREEN <- "#1a7f4b"
-RED <- "#cf222e"
-LINE <- "#c0392b"
-GRID <- "#e6e9ed"
-MUTED <- "#59636e"
-
-CASES <- list(
-  A = list(r = 0.51, n = 6),
-  B = list(r = 0.51, n = 30),
-  C = list(r = 0.10, n = 100),
-  D = list(r = 0.80, n = 5)
-)
-
-num <- function(x, digits = 2) {
-  formatC(x, format = "f", digits = digits, decimal.mark = ",")
-}
-int <- function(x) format(x, big.mark = ".", decimal.mark = ",", scientific = FALSE)
-
-t_stat <- function(r, n) r * sqrt((n - 2) / (1 - r^2))
-t_crit <- function(n, alpha = ALPHA) qt(1 - alpha / 2, n - 2)
-
-cohen_label <- function(r) {
-  a <- abs(r)
-  if (a < 0.1) "inferior a pequeña"
-  else if (a < 0.3) "pequeña"
-  else if (a < 0.5) "mediana"
-  else "grande"
-}
-
-# Datos en puntaje z cuya correlación muestral es exactamente r
-exact_cor_data <- function(r, n, seed = 1) {
-  set.seed(seed)
-  x <- as.numeric(scale(rnorm(n)))
-  e <- as.numeric(scale(resid(lm(rnorm(n) ~ x))))
-  data.frame(x = x, y = r * x + sqrt(1 - r^2) * e)
-}
-
-# Distancia entre centros de dos círculos de radio R cuya intersección
-# cubre una proporción r^2 del área de cada círculo
-venn_distance <- function(r, R = 1) {
-  target <- r^2 * pi * R^2
-  if (target >= pi * R^2 - 1e-9) return(0)
-  if (target <= 1e-9) return(2 * R)
-  lens <- function(d) 2 * R^2 * acos(d / (2 * R)) - (d / 2) * sqrt(4 * R^2 - d^2)
-  uniroot(function(d) lens(d) - target, c(0, 2 * R))$root
-}
-
-circle_df <- function(cx, R = 1, k = 200) {
-  t <- seq(0, 2 * pi, length.out = k)
-  data.frame(x = cx + R * cos(t), y = R * sin(t))
-}
-
-plot_theme <- theme_minimal(base_size = 13) +
-  theme(
-    panel.grid.major = element_line(colour = GRID, linewidth = 0.4),
-    panel.grid.minor = element_blank(),
-    axis.text = element_text(colour = MUTED, family = "mono"),
-    axis.title.x = element_text(colour = BLUE, face = "bold"),
-    axis.title.y = element_text(colour = ORANGE, face = "bold", angle = 0, vjust = 0.5),
-    plot.background = element_rect(fill = "transparent", colour = NA),
-    panel.background = element_rect(fill = "transparent", colour = NA)
-  )
-</script>
- 
-<script type="application/shiny-prerendered" data-context="server">
-r_val <- reactiveVal(0.51)
-n_val <- reactiveVal(30L)
-
-clamp_r <- function(x) round(max(min(x, R_MAX), -R_MAX), 2)
-clamp_n <- function(x) as.integer(max(min(round(x), N_MAX), N_MIN))
-
-# Slider y campo numérico escriben en r_val / n_val; r_val / n_val actualizan ambos.
-observeEvent(input$r_slider, r_val(clamp_r(input$r_slider)), ignoreInit = TRUE)
-observeEvent(input$r_num, {
-  req(is.numeric(input$r_num), !is.na(input$r_num))
-  r_val(clamp_r(input$r_num))
-}, ignoreInit = TRUE)
-observeEvent(input$n_slider, n_val(clamp_n(input$n_slider)), ignoreInit = TRUE)
-observeEvent(input$n_num, {
-  req(is.numeric(input$n_num), !is.na(input$n_num))
-  n_val(clamp_n(input$n_num))
-}, ignoreInit = TRUE)
-
-observeEvent(r_val(), {
-  if (!isTRUE(all.equal(input$r_slider, r_val()))) updateSliderInput(session, "r_slider", value = r_val())
-  if (!isTRUE(all.equal(input$r_num, r_val()))) updateNumericInput(session, "r_num", value = r_val())
-})
-observeEvent(n_val(), {
-  if (!isTRUE(input$n_slider == n_val())) updateSliderInput(session, "n_slider", value = n_val())
-  if (!isTRUE(input$n_num == n_val())) updateNumericInput(session, "n_num", value = n_val())
-})
-
-lapply(names(CASES), function(id) {
-  observeEvent(input[[paste0("case_", id)]], {
-    r_val(CASES[[id]]$r)
-    n_val(as.integer(CASES[[id]]$n))
-  })
-})
-
-dat <- reactive(exact_cor_data(r_val(), n_val(), seed = input$resample + 1))
-
-res <- reactive({
-  r <- r_val()
-  n <- n_val()
-  t <- t_stat(r, n)
-  tc <- t_crit(n)
-  list(r = r, n = n, df = n - 2, t = t, tc = tc,
-       p = 2 * pt(-abs(t), n - 2), sig = abs(t) >= tc)
-})
-
-output$scatter_caption <- renderUI({
-  div(class = "card-sub",
-      sprintf("Cada punto es un caso (n = %s). Variables en puntaje z; la recta tiene pendiente r.",
-              int(n_val())))
-})
-
-output$scatter_plot <- renderPlot({
-  d <- dat()
-  n <- nrow(d)
-  ggplot(d, aes(x, y)) +
-    geom_point(colour = BLUE, alpha = if (n > 300) 0.55 else 0.8,
-               size = if (n > 300) 1.1 else if (n > 50) 2 else 3) +
-    geom_abline(intercept = 0, slope = r_val(), colour = LINE, linewidth = 0.9) +
-    coord_cartesian(xlim = c(-3.4, 3.4), ylim = c(-3.4, 3.4), expand = FALSE) +
-    scale_x_continuous(breaks = -3:3) +
-    scale_y_continuous(breaks = -3:3) +
-    labs(x = "x", y = "y") +
-    plot_theme
-}, bg = "transparent")
-
-output$results <- renderUI({
-  s <- res()
-  col <- if (s$sig) GREEN else RED
-  explanation <- if (s$sig) {
-    sprintf("Como |t| = %s es mayor que el t crítico (%s), se rechaza H₀: hay evidencia para afirmar que la correlación en la población es distinta de cero.",
-            num(abs(s$t)), num(s$tc))
-  } else {
-    sprintf("Como |t| = %s es menor que el t crítico (%s), no se rechaza H₀: no hay evidencia suficiente para afirmar que la correlación en la población sea distinta de cero.",
-            num(abs(s$t)), num(s$tc))
-  }
-  p_txt <- if (s$p < 0.001) "< 0,001" else num(s$p, 3)
-
-  tagList(
-    div(class = "verdict", style = sprintf("color:%s;border-color:%s;", col, col),
-        if (s$sig) "Significativa" else "No significativa"),
-    tags$table(
-      class = "stats-table",
-      tags$tr(tags$td("Magnitud (Cohen)"),
-              tags$td(sprintf("r = %s, %s", num(s$r), cohen_label(s$r)))),
-      tags$tr(tags$td("Estadístico t"), tags$td(num(s$t))),
-      tags$tr(tags$td(sprintf("t crítico (α = %s, dos colas)", num(ALPHA))),
-              tags$td(paste("±", num(s$tc)))),
-      tags$tr(tags$td("Grados de libertad"),
-              tags$td(sprintf("%s (n − 2)", int(s$df)))),
-      tags$tr(tags$td("Valor p"), tags$td(p_txt))
-    ),
-    tags$p(class = "explanation", explanation)
-  )
-})
-
-output$venn_caption <- renderUI({
-  div(class = "venn-caption",
-      sprintf("R² = r² = %s %% de la varianza de Y está asociada a X. Este valor no cambia con n.",
-              num(100 * r_val()^2, 1)))
-})
-
-output$venn_plot <- renderPlot({
-  d <- venn_distance(r_val())
-  ggplot() +
-    geom_polygon(data = circle_df(0), aes(x, y),
-                 fill = BLUE, alpha = 0.35, colour = BLUE, linewidth = 0.8) +
-    geom_polygon(data = circle_df(d), aes(x, y),
-                 fill = ORANGE, alpha = 0.35, colour = ORANGE, linewidth = 0.8) +
-    annotate("text", x = -0.55, y = 0, label = "X", colour = BLUE, fontface = "bold", size = 5) +
-    annotate("text", x = d + 0.55, y = 0, label = "Y", colour = ORANGE, fontface = "bold", size = 5) +
-    coord_equal(xlim = d / 2 + c(-2.05, 2.05), ylim = c(-1.05, 1.05)) +
-    theme_void() +
-    theme(plot.background = element_rect(fill = "transparent", colour = NA))
-}, bg = "transparent")
-</script>
- 
-<script type="application/shiny-prerendered" data-context="server-extras">
-ojs_define <- function(..., .session = shiny::getDefaultReactiveDomain()) {
-  quos <- rlang::enquos(...)
-  vars <- rlang::list2(...)
-  nm <- names(vars)
-  if (is.null(nm)) {
-    nm <- rep_len("", length(vars))
-  }
-  mapply(
-    function(q, nm, val) {
-      # Infer name, if possible
-      if (nm == "") {
-        tryCatch(
-          {
-            nm <- rlang::as_name(q)
-          },
-          error = function(e) {
-            code <- paste(collapse = "\n", deparse(rlang::f_rhs(q)))
-            stop(
-              "ojs_define() could not create a name for the argument: ",
-              code
-            )
-          }
-        )
-      }
-      .session$output[[nm]] <- val
-      outputOptions(.session$output, nm, suspendWhenHidden = FALSE)
-      .session$sendCustomMessage("ojs-export", list(name = nm))
-      NULL
-    },
-    quos,
-    nm,
-    vars,
-    SIMPLIFY = FALSE,
-    USE.NAMES = FALSE
-  )
-  invisible()
-}
-</script>
-</p>
-<!--html_preserve-->
-<script type="application/shiny-prerendered" data-context="dependencies">
-{"type":"list","attributes":{},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["name","version","src","meta","script","stylesheet","head","attachment","package","all_files","pkgVersion"]},"class":{"type":"character","attributes":{},"value":["html_dependency"]}},"value":[{"type":"character","attributes":{},"value":["ionrangeslider-javascript"]},{"type":"character","attributes":{},"value":["2.3.1"]},{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["file"]}},"value":[{"type":"character","attributes":{},"value":["www/shared/ionrangeslider"]}]},{"type":"NULL"},{"type":"character","attributes":{},"value":["js/ion.rangeSlider.min.js"]},{"type":"NULL"},{"type":"NULL"},{"type":"NULL"},{"type":"character","attributes":{},"value":["shiny"]},{"type":"logical","attributes":{},"value":[true]},{"type":"character","attributes":{},"value":["1.11.1"]}]},{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["name","version","src","meta","script","stylesheet","head","attachment","package","all_files","pkgVersion"]},"class":{"type":"character","attributes":{},"value":["html_dependency"]}},"value":[{"type":"character","attributes":{},"value":["strftime"]},{"type":"character","attributes":{},"value":["0.9.2"]},{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["file"]}},"value":[{"type":"character","attributes":{},"value":["www/shared/strftime"]}]},{"type":"NULL"},{"type":"character","attributes":{},"value":["strftime-min.js"]},{"type":"NULL"},{"type":"NULL"},{"type":"NULL"},{"type":"character","attributes":{},"value":["shiny"]},{"type":"logical","attributes":{},"value":[true]},{"type":"character","attributes":{},"value":["1.11.1"]}]},{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["name","version","src","meta","script","stylesheet","head","attachment","package","all_files","pkgVersion"]},"class":{"type":"character","attributes":{},"value":["html_dependency"]}},"value":[{"type":"character","attributes":{},"value":["ionrangeslider-css"]},{"type":"character","attributes":{},"value":["2.3.1"]},{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["file"]}},"value":[{"type":"character","attributes":{},"value":["www/shared/ionrangeslider"]}]},{"type":"NULL"},{"type":"NULL"},{"type":"character","attributes":{},"value":["css/ion.rangeSlider.css"]},{"type":"NULL"},{"type":"NULL"},{"type":"character","attributes":{},"value":["shiny"]},{"type":"logical","attributes":{},"value":[true]},{"type":"character","attributes":{},"value":["1.11.1"]}]},{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["name","version","src","meta","script","stylesheet","head","attachment","package","all_files","pkgVersion"]},"class":{"type":"character","attributes":{},"value":["html_dependency"]}},"value":[{"type":"character","attributes":{},"value":["htmltools-fill"]},{"type":"character","attributes":{},"value":["0.5.9"]},{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["file"]}},"value":[{"type":"character","attributes":{},"value":["fill"]}]},{"type":"NULL"},{"type":"NULL"},{"type":"character","attributes":{},"value":["fill.css"]},{"type":"NULL"},{"type":"NULL"},{"type":"character","attributes":{},"value":["htmltools"]},{"type":"logical","attributes":{},"value":[true]},{"type":"character","attributes":{},"value":["0.5.9"]}]}]}
-</script>
-<!--/html_preserve-->
-<!--html_preserve-->
-<script type="application/shiny-prerendered" data-context="execution_dependencies">
-{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["packages"]}},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["packages","version"]},"class":{"type":"character","attributes":{},"value":["data.frame"]},"row.names":{"type":"integer","attributes":{},"value":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54]}},"value":[{"type":"character","attributes":{},"value":["base","bslib","cachem","cli","compiler","datasets","dichromat","digest","dplyr","evaluate","farver","fastmap","generics","ggplot2","glue","graphics","grDevices","grid","gtable","htmltools","htmlwidgets","httpuv","jquerylib","jsonlite","knitr","later","lifecycle","magrittr","memoise","methods","mime","otel","pillar","pkgconfig","promises","R6","RColorBrewer","Rcpp","rlang","rmarkdown","S7","sass","scales","shiny","stats","tibble","tidyselect","tools","utils","vctrs","withr","xfun","xtable","yaml"]},{"type":"character","attributes":{},"value":["4.5.0","0.11.0","1.1.0","3.6.5","4.5.0","4.5.0","2.0-0.1","0.6.39","1.2.1","1.0.5","2.1.2","1.2.0","0.1.4","4.0.3","1.8.0","4.5.0","4.5.0","4.5.0","0.3.6","0.5.9","1.6.4","1.6.17","0.1.4","2.0.0","1.51","1.4.8","1.0.5","2.0.5","2.0.1","4.5.0","0.13","0.2.0","1.11.1","2.0.3","1.5.0","2.6.1","1.1-3","1.1.1-1.1","1.2.0","2.31","0.2.0","0.4.10","1.4.0","1.11.1","4.5.0","3.3.1","1.2.1","4.5.0","4.5.0","0.7.3","3.0.3","0.59","1.8-4","2.3.12"]}]}]}
-</script>
-<!--/html_preserve-->
 
 </main>
 <!-- /main column -->
