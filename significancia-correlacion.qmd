@@ -1,0 +1,373 @@
+---
+title: "Interpretando Correlaciones"
+subtitle: "Visualización interactiva de correlación, varianza compartida y test de hipótesis"
+format:
+  html:
+    page-layout: full
+    theme: cosmo
+    mainfont: "IBM Plex Sans"
+    monofont: "IBM Plex Mono"
+lang: es
+server: shiny
+---
+
+
+::: {.callout-note}
+
+Basado en la visualización diseñada por Kristoffer Magnusson: [*Interpreting Correlations: An interactive visualization*](https://rpsychologist.com/correlation/)
+
+:::
+
+
+
+
+
+
+
+
+```{=html}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f6f8fa;
+  --card: #ffffff;
+  --card-inset: #f1f4f8;
+  --border: #d8dee4;
+  --text: #1f2328;
+  --muted: #59636e;
+  --blue: #2f6fd0;
+  --orange: #d9822b;
+  --green: #1a7f4b;
+  --red: #cf222e;
+}
+body { background: var(--bg); color: var(--text); }
+.quarto-title-block .quarto-title-banner, header#title-block-header { background: transparent; }
+.quarto-title p.subtitle { color: var(--muted); }
+
+.card-panel {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.25rem 1.25rem 1rem;
+  height: 100%;
+}
+.card-panel h3 {
+  font-size: 1.05rem; font-weight: 700; margin: 0 0 0.25rem; border: none;
+}
+.card-panel .card-sub { color: var(--muted); font-size: 0.85rem; margin-bottom: 0.5rem; }
+
+/* Barra de controles */
+.controls { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 1.5rem; }
+.control-group label.group-label { font-weight: 700; display: block; margin-bottom: 0.25rem; }
+.control-row { display: flex; align-items: center; gap: 0.75rem; }
+.control-row .form-group { margin-bottom: 0; }
+.control-row .shiny-input-container:not(.shiny-input-container-inline) { width: auto; }
+.control-row input[type=number] {
+  width: 95px; background: var(--card-inset); color: var(--text);
+  border: 1px solid var(--border); font-family: "IBM Plex Mono", monospace;
+  font-weight: 600;
+}
+.cases { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 1rem; }
+.cases .cases-label { color: var(--muted); margin-right: 0.25rem; }
+.btn-case, .btn-plain {
+  background: var(--card-inset); color: var(--text); border: 1px solid var(--border);
+  font-family: "IBM Plex Mono", monospace; font-size: 0.85rem;
+}
+.btn-case:hover, .btn-plain:hover { border-color: var(--blue); color: var(--text); background: var(--card-inset); }
+
+/* Sliders (ionRangeSlider) sin etiquetas: el valor va en el campo numérico */
+.irs--shiny .irs-line { background: var(--border); border: none; }
+.irs--shiny .irs-bar { background: var(--blue); border: none; }
+.irs--shiny .irs-handle { background: var(--blue); border: 2px solid var(--blue); box-shadow: none; }
+.irs--shiny .irs-min, .irs--shiny .irs-max, .irs--shiny .irs-single { display: none; }
+
+/* Tarjeta de resultados */
+.verdict {
+  font-size: 1.9rem; font-weight: 700; padding-left: 0.9rem;
+  border-left: 5px solid; margin: 0.25rem 0 0.75rem;
+}
+.stats-table { width: 100%; margin-bottom: 0.75rem; }
+.stats-table td { padding: 0.2rem 0; vertical-align: top; }
+.stats-table td:first-child { color: var(--muted); width: 55%; }
+.stats-table td:last-child { font-family: "IBM Plex Mono", monospace; font-weight: 600; }
+.explanation { margin-bottom: 1.25rem; }
+.venn-caption { color: var(--muted); font-size: 0.85rem; }
+</style>
+```
+
+```{r}
+#| context: setup
+#| include: false
+library(shiny)
+library(ggplot2)
+
+N_MIN <- 4
+N_MAX <- 1000
+ALPHA <- 0.05
+R_MAX <- 0.99
+BLUE <- "#2f6fd0"
+ORANGE <- "#d9822b"
+GREEN <- "#1a7f4b"
+RED <- "#cf222e"
+LINE <- "#c0392b"
+GRID <- "#e6e9ed"
+MUTED <- "#59636e"
+
+CASES <- list(
+  A = list(r = 0.51, n = 6),
+  B = list(r = 0.51, n = 30),
+  C = list(r = 0.10, n = 100),
+  D = list(r = 0.80, n = 5)
+)
+
+num <- function(x, digits = 2) {
+  formatC(x, format = "f", digits = digits, decimal.mark = ",")
+}
+int <- function(x) format(x, big.mark = ".", decimal.mark = ",", scientific = FALSE)
+
+t_stat <- function(r, n) r * sqrt((n - 2) / (1 - r^2))
+t_crit <- function(n, alpha = ALPHA) qt(1 - alpha / 2, n - 2)
+
+cohen_label <- function(r) {
+  a <- abs(r)
+  if (a < 0.1) "inferior a pequeña"
+  else if (a < 0.3) "pequeña"
+  else if (a < 0.5) "mediana"
+  else "grande"
+}
+
+# Datos en puntaje z cuya correlación muestral es exactamente r
+exact_cor_data <- function(r, n, seed = 1) {
+  set.seed(seed)
+  x <- as.numeric(scale(rnorm(n)))
+  e <- as.numeric(scale(resid(lm(rnorm(n) ~ x))))
+  data.frame(x = x, y = r * x + sqrt(1 - r^2) * e)
+}
+
+# Distancia entre centros de dos círculos de radio R cuya intersección
+# cubre una proporción r^2 del área de cada círculo
+venn_distance <- function(r, R = 1) {
+  target <- r^2 * pi * R^2
+  if (target >= pi * R^2 - 1e-9) return(0)
+  if (target <= 1e-9) return(2 * R)
+  lens <- function(d) 2 * R^2 * acos(d / (2 * R)) - (d / 2) * sqrt(4 * R^2 - d^2)
+  uniroot(function(d) lens(d) - target, c(0, 2 * R))$root
+}
+
+circle_df <- function(cx, R = 1, k = 200) {
+  t <- seq(0, 2 * pi, length.out = k)
+  data.frame(x = cx + R * cos(t), y = R * sin(t))
+}
+
+plot_theme <- theme_minimal(base_size = 13) +
+  theme(
+    panel.grid.major = element_line(colour = GRID, linewidth = 0.4),
+    panel.grid.minor = element_blank(),
+    axis.text = element_text(colour = MUTED, family = "mono"),
+    axis.title.x = element_text(colour = BLUE, face = "bold"),
+    axis.title.y = element_text(colour = ORANGE, face = "bold", angle = 0, vjust = 0.5),
+    plot.background = element_rect(fill = "transparent", colour = NA),
+    panel.background = element_rect(fill = "transparent", colour = NA)
+  )
+```
+
+```{r}
+#| echo: false
+case_button <- function(id) {
+  cs <- CASES[[id]]
+  actionButton(
+    paste0("case_", id),
+    HTML(sprintf("<b>%s</b> r = %s, n = %s", id, num(cs$r), int(cs$n))),
+    class = "btn-case btn-sm"
+  )
+}
+
+div(
+  class = "card-panel", style = "margin-bottom: 1.25rem;",
+  div(
+    class = "controls",
+    div(
+      class = "control-group",
+      tags$label(class = "group-label", "Correlación r"),
+      div(
+        class = "control-row",
+        sliderInput("r_slider", NULL, min = -R_MAX, max = R_MAX, value = 0.51,
+                    step = 0.01, ticks = FALSE, width = "240px"),
+        numericInput("r_num", NULL, value = 0.51, min = -R_MAX, max = R_MAX, step = 0.01)
+      )
+    ),
+    div(
+      class = "control-group",
+      tags$label(class = "group-label", "Tamaño muestral n"),
+      div(
+        class = "control-row",
+        sliderInput("n_slider", NULL, min = N_MIN, max = N_MAX, value = 30,
+                    step = 1, ticks = FALSE, width = "240px"),
+        numericInput("n_num", NULL, value = 30, min = N_MIN, max = N_MAX, step = 1)
+      )
+    ),
+    div(
+      class = "control-row", style = "padding-bottom: 0.4rem;",
+      actionButton("resample", "Nueva muestra", class = "btn-plain")
+    )
+  ),
+  div(
+    class = "cases",
+    span(class = "cases-label", "Casos para la clase:"),
+    lapply(names(CASES), case_button)
+  )
+)
+
+div(
+  class = "grid",
+  div(
+    class = "g-col-12 g-col-lg-6",
+    div(
+      class = "card-panel",
+      h3("Nube de puntos"),
+      uiOutput("scatter_caption"),
+      plotOutput("scatter_plot", height = "470px")
+    )
+  ),
+  div(
+    class = "g-col-12 g-col-lg-6",
+    div(
+      class = "card-panel",
+      uiOutput("results"),
+      h3("Varianza compartida"),
+      uiOutput("venn_caption"),
+      plotOutput("venn_plot", height = "170px")
+    )
+  )
+)
+```
+
+```{r}
+#| context: server
+r_val <- reactiveVal(0.51)
+n_val <- reactiveVal(30L)
+
+clamp_r <- function(x) round(max(min(x, R_MAX), -R_MAX), 2)
+clamp_n <- function(x) as.integer(max(min(round(x), N_MAX), N_MIN))
+
+# Slider y campo numérico escriben en r_val / n_val; r_val / n_val actualizan ambos.
+observeEvent(input$r_slider, r_val(clamp_r(input$r_slider)), ignoreInit = TRUE)
+observeEvent(input$r_num, {
+  req(is.numeric(input$r_num), !is.na(input$r_num))
+  r_val(clamp_r(input$r_num))
+}, ignoreInit = TRUE)
+observeEvent(input$n_slider, n_val(clamp_n(input$n_slider)), ignoreInit = TRUE)
+observeEvent(input$n_num, {
+  req(is.numeric(input$n_num), !is.na(input$n_num))
+  n_val(clamp_n(input$n_num))
+}, ignoreInit = TRUE)
+
+observeEvent(r_val(), {
+  if (!isTRUE(all.equal(input$r_slider, r_val()))) updateSliderInput(session, "r_slider", value = r_val())
+  if (!isTRUE(all.equal(input$r_num, r_val()))) updateNumericInput(session, "r_num", value = r_val())
+})
+observeEvent(n_val(), {
+  if (!isTRUE(input$n_slider == n_val())) updateSliderInput(session, "n_slider", value = n_val())
+  if (!isTRUE(input$n_num == n_val())) updateNumericInput(session, "n_num", value = n_val())
+})
+
+lapply(names(CASES), function(id) {
+  observeEvent(input[[paste0("case_", id)]], {
+    r_val(CASES[[id]]$r)
+    n_val(as.integer(CASES[[id]]$n))
+  })
+})
+
+dat <- reactive(exact_cor_data(r_val(), n_val(), seed = input$resample + 1))
+
+res <- reactive({
+  r <- r_val()
+  n <- n_val()
+  t <- t_stat(r, n)
+  tc <- t_crit(n)
+  list(r = r, n = n, df = n - 2, t = t, tc = tc,
+       p = 2 * pt(-abs(t), n - 2), sig = abs(t) >= tc)
+})
+
+output$scatter_caption <- renderUI({
+  div(class = "card-sub",
+      sprintf("Cada punto es un caso (n = %s). Variables en puntaje z; la recta tiene pendiente r.",
+              int(n_val())))
+})
+
+output$scatter_plot <- renderPlot({
+  d <- dat()
+  n <- nrow(d)
+  ggplot(d, aes(x, y)) +
+    geom_point(colour = BLUE, alpha = if (n > 300) 0.55 else 0.8,
+               size = if (n > 300) 1.1 else if (n > 50) 2 else 3) +
+    geom_abline(intercept = 0, slope = r_val(), colour = LINE, linewidth = 0.9) +
+    coord_cartesian(xlim = c(-3.4, 3.4), ylim = c(-3.4, 3.4), expand = FALSE) +
+    scale_x_continuous(breaks = -3:3) +
+    scale_y_continuous(breaks = -3:3) +
+    labs(x = "x", y = "y") +
+    plot_theme
+}, bg = "transparent")
+
+output$results <- renderUI({
+  s <- res()
+  col <- if (s$sig) GREEN else RED
+  explanation <- if (s$sig) {
+    sprintf("Como |t| = %s es mayor que el t crítico (%s), se rechaza H₀: hay evidencia para afirmar que la correlación en la población es distinta de cero.",
+            num(abs(s$t)), num(s$tc))
+  } else {
+    sprintf("Como |t| = %s es menor que el t crítico (%s), no se rechaza H₀: no hay evidencia suficiente para afirmar que la correlación en la población sea distinta de cero.",
+            num(abs(s$t)), num(s$tc))
+  }
+  p_txt <- if (s$p < 0.001) "< 0,001" else num(s$p, 3)
+
+  tagList(
+    div(class = "verdict", style = sprintf("color:%s;border-color:%s;", col, col),
+        if (s$sig) "Significativa" else "No significativa"),
+    tags$table(
+      class = "stats-table",
+      tags$tr(tags$td("Magnitud (Cohen)"),
+              tags$td(sprintf("r = %s, %s", num(s$r), cohen_label(s$r)))),
+      tags$tr(tags$td("Estadístico t"), tags$td(num(s$t))),
+      tags$tr(tags$td(sprintf("t crítico (α = %s, dos colas)", num(ALPHA))),
+              tags$td(paste("±", num(s$tc)))),
+      tags$tr(tags$td("Grados de libertad"),
+              tags$td(sprintf("%s (n − 2)", int(s$df)))),
+      tags$tr(tags$td("Valor p"), tags$td(p_txt))
+    ),
+    tags$p(class = "explanation", explanation)
+  )
+})
+
+output$venn_caption <- renderUI({
+  div(class = "venn-caption",
+      sprintf("R² = r² = %s %% de la varianza de Y está asociada a X. Este valor no cambia con n.",
+              num(100 * r_val()^2, 1)))
+})
+
+output$venn_plot <- renderPlot({
+  d <- venn_distance(r_val())
+  ggplot() +
+    geom_polygon(data = circle_df(0), aes(x, y),
+                 fill = BLUE, alpha = 0.35, colour = BLUE, linewidth = 0.8) +
+    geom_polygon(data = circle_df(d), aes(x, y),
+                 fill = ORANGE, alpha = 0.35, colour = ORANGE, linewidth = 0.8) +
+    annotate("text", x = -0.55, y = 0, label = "X", colour = BLUE, fontface = "bold", size = 5) +
+    annotate("text", x = d + 0.55, y = 0, label = "Y", colour = ORANGE, fontface = "bold", size = 5) +
+    coord_equal(xlim = d / 2 + c(-2.05, 2.05), ylim = c(-1.05, 1.05)) +
+    theme_void() +
+    theme(plot.background = element_rect(fill = "transparent", colour = NA))
+}, bg = "transparent")
+```
+
+
+::: {.callout-important}
+
+El coeficiente de correlación y el valor t deben interpretarse en conjunto.
+
+Un coeficiente grande puede ser no significativo si la muestra es pequeña; Un coeficiente pequeño puede ser significativo si la muestra es lo suficientemente grande
+
+Rechazar la hipótesis nula **no dice nada sobre la cantidad de varianza que las dos variables comparten**
+
+:::
